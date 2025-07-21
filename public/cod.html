@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estação Meteorológica</title>
+
+    <!-- Ícones (Font Awesome) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Estilos CSS -->
+    <style>
+        /* Reset e configurações globais */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        body {
+            background: #1a2a6c; /* Fundo azul escuro */
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px; /* Reduzido para telas pequenas */
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1100px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 15px; /* Reduzido para telas pequenas */
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 1.8rem; /* Reduzido para telas pequenas */
+            margin-bottom: 5px;
+            color: #64ffda; /* Cor de destaque menta */
+        }
+
+        .subtitle {
+            color: #a0aec0; /* Cinza claro */
+            font-size: 0.9rem;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: rgba(30, 41, 59, 0.7); /* Fundo do painel azul-acinzentado */
+            border-radius: 12px;
+            padding: 15px;
+        }
+
+        .panel-title {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            color: #64ffda;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+        }
+
+        /* Cards de dados dos sensores */
+        .sensor-data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .sensor-data-card {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .sensor-data-card .icon {
+            font-size: 1.8rem;
+            color: #4299e1; /* Azul */
+            margin-bottom: 10px;
+        }
+        
+        .sensor-data-card .label {
+            font-size: 0.8rem;
+            color: #a0aec0;
+            margin-bottom: 5px;
+        }
+
+        .sensor-data-card .value {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        /* Estilos do formulário */
+        .form-fieldset {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-legend {
+            color: #64ffda;
+            font-weight: bold;
+            padding: 0 10px;
+            margin-left: 10px;
+            font-size: 0.9rem;
+        }
+
+        .form-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            font-size: 0.8rem;
+            color: #a0aec0;
+            text-align: center;
+            margin-bottom: 4px;
+        }
+        
+        .input-wrapper {
+            display: flex;
+            flex-direction: column;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            background: #2d3748; /* Fundo do input */
+            border: 1px solid #4a5568;
+            color: #fff;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #64ffda;
+            box-shadow: 0 0 0 3px rgba(100, 255, 218, 0.3);
+        }
+        
+        .btn-submit {
+            width: 100%;
+            background: #38b2ac; /* Verde-azulado */
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn-submit:hover {
+            background: #319795;
+        }
+
+        .last-update {
+            font-size: 0.8rem;
+            color: #a0aec0;
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        #notification {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-weight: bold;
+            display: none; /* Começa escondido */
+        }
+        
+        #notification.success {
+            background-color: #2f855a; /* Verde */
+            color: white;
+        }
+        
+        #notification.error {
+            background-color: #c53030; /* Vermelho */
+            color: white;
+        }
+
+        /* --- MEDIA QUERIES PARA RESPONSIVIDADE --- */
+
+        /* Para tablets e desktops menores */
+        @media(max-width: 992px) {
+            .dashboard {
+                grid-template-columns: 1fr; /* Os painéis ficam um sobre o outro */
+            }
+            h1 {
+                font-size: 2.2rem;
+            }
+             .container {
+                padding: 20px;
+            }
+        }
+
+        /* Para celulares */
+        @media(max-width: 576px) {
+            .sensor-data-grid {
+                grid-template-columns: 1fr; /* Os cards de sensor ficam um sobre o outro */
+            }
+            .form-group {
+                grid-template-columns: 1fr; /* Os inputs do formulário ficam um sobre o outro */
+                gap: 15px; /* Aumenta o espaço vertical */
+            }
+        }
+
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-satellite-dish"></i> Estação Meteorológica</h1>
+            <p class="subtitle">Monitoramento de Sensores em Tempo Real com Raspberry Pi Pico</p>
+        </header>
+
+        <div class="dashboard">
+            <!-- PAINEL DE LEITURAS -->
+            <div class="panel">
+                <h2 class="panel-title"><i class="fas fa-chart-line"></i> Leituras Atuais</h2>
+                
+                <!-- Sensor 1: Temperatura e Umidade -->
+                <fieldset class="form-fieldset">
+                    <legend class="form-legend">Sensor 1 (AHT20)</legend>
+                    <div class="sensor-data-grid">
+                        <div class="sensor-data-card">
+                            <div class="icon"><i class="fas fa-thermometer-half"></i></div>
+                            <div class="label">Temperatura</div>
+                            <div class="value" id="aht20_temp">-- °C</div>
+                        </div>
+                        <div class="sensor-data-card">
+                            <div class="icon"><i class="fas fa-tint"></i></div>
+                            <div class="label">Umidade</div>
+                            <div class="value" id="aht20_humidity">-- %</div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- Sensor 2: Temperatura e Pressão -->
+                 <fieldset class="form-fieldset">
+                    <legend class="form-legend">Sensor 2 (BMP280)</legend>
+                    <div class="sensor-data-grid">
+                        <div class="sensor-data-card">
+                            <div class="icon"><i class="fas fa-thermometer-half"></i></div>
+                            <div class="label">Temperatura</div>
+                            <div class="value" id="bmp280_temp">-- °C</div>
+                        </div>
+                        <div class="sensor-data-card">
+                            <div class="icon"><i class="fas fa-tachometer-alt"></i></div>
+                            <div class="label">Pressão</div>
+                            <div class="value" id="bmp280_pressure">-- hPa</div>
+                        </div>
+                    </div>
+                </fieldset>
+            </div>
+
+            <!-- PAINEL DE CONFIGURAÇÕES -->
+            <div class="panel">
+                <h2 class="panel-title"><i class="fas fa-cogs"></i> Configurações dos Sensores</h2>
+                <form id="settingsForm">
+                    <!-- Configurações de Temperatura -->
+                    <fieldset class="form-fieldset">
+                        <legend class="form-legend">Temperatura (°C)</legend>
+                        <div class="form-group">
+                            <div class="input-wrapper"><label for="temp_min">Mínimo</label><input type="number" id="temp_min" step="0.1"></div>
+                            <div class="input-wrapper"><label for="temp_max">Máximo</label><input type="number" id="temp_max" step="0.1"></div>
+                            <div class="input-wrapper"><label for="temp_offset">Offset</label><input type="number" id="temp_offset" step="0.1"></div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Configurações de Umidade -->
+                    <fieldset class="form-fieldset">
+                        <legend class="form-legend">Umidade (%)</legend>
+                        <div class="form-group">
+                             <div class="input-wrapper"><label for="humidity_min">Mínimo</label><input type="number" id="humidity_min" step="0.1"></div>
+                             <div class="input-wrapper"><label for="humidity_max">Máximo</label><input type="number" id="humidity_max" step="0.1"></div>
+                             <div class="input-wrapper"><label for="humidity_offset">Offset</label><input type="number" id="humidity_offset" step="0.1"></div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Configurações de Pressão -->
+                    <fieldset class="form-fieldset">
+                        <legend class="form-legend">Pressão (hPa)</legend>
+                        <div class="form-group">
+                            <div class="input-wrapper"><label for="pressure_min">Mínimo</label><input type="number" id="pressure_min" step="1"></div>
+                            <div class="input-wrapper"><label for="pressure_max">Máximo</label><input type="number" id="pressure_max" step="1"></div>
+                            <div class="input-wrapper"><label for="pressure_offset">Offset</label><input type="number" id="pressure_offset" step="1"></div>
+                        </div>
+                    </fieldset>
+                    
+                    <button type="submit" class="btn-submit">
+                        <i class="fas fa-save"></i> Salvar Configurações
+                    </button>
+                    
+                    <div id="notification"></div>
+                </form>
+            </div>
+        </div>
+
+        <div class="last-update" id="timestamp">Aguardando dados...</div>
+    </div>
+
+    <!-- Script JavaScript -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const settingsForm = document.getElementById('settingsForm');
+            const notification = document.getElementById('notification');
+            // Variável para controlar se o usuário está editando o formulário
+            let isUserEditingForm = false;
+
+            // --- FUNÇÕES DE ATUALIZAÇÃO DA INTERFACE ---
+
+            function updateSensorReadings(data) {
+                // Renomeei os IDs para serem mais específicos e evitar confusão
+                document.getElementById('aht20_temp').textContent = `${(data.s1_temp || 0).toFixed(1)} °C`;
+                document.getElementById('aht20_humidity').textContent = `${(data.s1_humidity || 0).toFixed(1)} %`;
+                document.getElementById('bmp280_temp').textContent = `${(data.s2_temp || 0).toFixed(1)} °C`;
+                document.getElementById('bmp280_pressure').textContent = `${(data.s2_pressure || 0).toFixed(0)} hPa`;
+            }
+
+            function updateFormSettings(config) {
+                document.getElementById('temp_min').value = config.temp_min;
+                document.getElementById('temp_max').value = config.temp_max;
+                document.getElementById('temp_offset').value = config.temp_offset;
+
+                document.getElementById('humidity_min').value = config.humidity_min;
+                document.getElementById('humidity_max').value = config.humidity_max;
+                document.getElementById('humidity_offset').value = config.humidity_offset;
+
+                document.getElementById('pressure_min').value = config.pressure_min;
+                document.getElementById('pressure_max').value = config.pressure_max;
+                document.getElementById('pressure_offset').value = config.pressure_offset;
+            }
+
+            function updateTimestamp() {
+                document.getElementById('timestamp').textContent = 'Atualizado em: ' + new Date().toLocaleString('pt-BR');
+            }
+            
+            function showNotification(message, type) {
+                notification.textContent = message;
+                notification.className = type;
+                notification.style.display = 'block';
+                
+                setTimeout(() => {
+                    notification.style.display = 'none';
+                }, 3000);
+            }
+
+            // --- LÓGICA DE COMUNICAÇÃO COM O SERVIDOR (RASPBERRY PI PICO) ---
+
+            async function fetchData() {
+                try {
+                    const response = await fetch('/estado'); 
+                    if (!response.ok) {
+                        throw new Error(`Erro de rede: ${response.statusText}`);
+                    }
+                    const data = await response.json();
+
+                    // As leituras dos sensores são sempre atualizadas
+                    updateSensorReadings(data);
+                    
+                    // O formulário SÓ é atualizado se o usuário NÃO estiver editando
+                    if (!isUserEditingForm) {
+                        updateFormSettings(data);
+                    }
+
+                    updateTimestamp();
+
+                } catch (error) {
+                    console.error('Falha ao buscar dados:', error);
+                }
+            }
+
+            async function handleFormSubmit(event) {
+                event.preventDefault();
+
+                const newLimits = {
+                    temp_min: parseFloat(document.getElementById('temp_min').value),
+                    temp_max: parseFloat(document.getElementById('temp_max').value),
+                    temp_offset: parseFloat(document.getElementById('temp_offset').value),
+                    humidity_min: parseFloat(document.getElementById('humidity_min').value),
+                    humidity_max: parseFloat(document.getElementById('humidity_max').value),
+                    humidity_offset: parseFloat(document.getElementById('humidity_offset').value),
+                    pressure_min: parseFloat(document.getElementById('pressure_min').value),
+                    pressure_max: parseFloat(document.getElementById('pressure_max').value),
+                    pressure_offset: parseFloat(document.getElementById('pressure_offset').value)
+                };
+
+                try {
+                    const response = await fetch('/limites', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newLimits),
+                    });
+
+                    if (response.ok) {
+                        showNotification('Configurações salvas com sucesso!', 'success');
+                        // Após salvar, destrava o formulário para que ele possa ser atualizado com os novos valores
+                        isUserEditingForm = false;
+                        // Força uma busca imediata para refletir os dados salvos
+                        await fetchData();
+                    } else {
+                        throw new Error('Falha ao salvar as configurações no servidor.');
+                    }
+                } catch (error) {
+                    console.error('Erro ao enviar configurações:', error);
+                    showNotification('Erro ao salvar. Verifique a conexão.', 'error');
+                }
+            }
+
+            // --- INICIALIZAÇÃO ---
+
+            // Adiciona listeners para detectar quando o usuário está interagindo com o formulário
+            const formInputs = settingsForm.querySelectorAll('input[type="number"]');
+            formInputs.forEach(input => {
+                // Quando o usuário clica ou entra em um campo, trava a atualização
+                input.addEventListener('focus', () => {
+                    isUserEditingForm = true;
+                });
+                // Quando o usuário sai do campo, destrava.
+                // Se ele sair do formulário, os valores serão re-sincronizados na próxima busca.
+                input.addEventListener('blur', () => {
+                    isUserEditingForm = false;
+                });
+            });
+
+            settingsForm.addEventListener('submit', handleFormSubmit);
+            fetchData();
+            setInterval(fetchData, 5000);
+        });
+    </script>
+</body>
+</html>
