@@ -80,7 +80,7 @@ int ordem[LED_COUNT] = {0, 1, 2, 3, 4, 9, 8, 7, 6, 5, 10, 11, 12, 13, 14, 19, 18
 
 struct http_state
 {
-    char response[10000];
+    char response[15000];
     size_t len;
     size_t sent;
 };
