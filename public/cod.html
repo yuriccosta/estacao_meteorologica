@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Estação Meteorológica</title>
+    <!-- Biblioteca de Ícones Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Biblioteca de Gráficos ApexCharts -->
     <script src='https://cdn.jsdelivr.net/npm/apexcharts'></script>
     <style>
@@ -29,14 +31,21 @@
             display: flex;
             flex-wrap: wrap;
             gap: 15px;
+            align-items: stretch; /* Garante que os painéis na mesma linha tenham a mesma altura */
         }
         .panel {
             background-color: #161b22;
             border: 1px solid #30363d;
             border-radius: 6px;
             padding: 15px;
-            flex: 1;
-            min-width: 300px; /* Garante que não fiquem muito espremidos */
+            flex: 1 1 100%; /* Em telas pequenas, ocupa a largura toda */
+            display: flex; /* Transforma o painel em um container flex */
+            flex-direction: column; /* Organiza o conteúdo do painel verticalmente */
+        }
+        @media (min-width: 768px) {
+            .panel {
+                flex: 1 1 45%; /* Em telas maiores, permite dois painéis lado a lado */
+            }
         }
         .panel-title {
             font-size: 1.1rem;
@@ -44,41 +53,70 @@
             margin: 0 0 15px 0;
             border-bottom: 1px solid #30363d;
             padding-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         /* Cards de Leitura */
-        .sensor-group { margin-bottom: 15px; }
-        .sensor-group-title { font-size: 0.9rem; color: #8b949e; margin-bottom: 10px; }
-        .readings-grid {
+        .readings-panel-content {
             display: flex;
-            gap: 10px;
+            flex-direction: column;
+            justify-content: space-around; /* Distribui o espaço verticalmente */
+            flex-grow: 1; /* Faz este container crescer para preencher o painel */
         }
+        .sensor-group { margin-bottom: 15px; }
+        .sensor-group:last-child { margin-bottom: 0; }
+        .sensor-group-title { font-size: 0.9rem; color: #8b949e; margin-bottom: 10px; }
+        .readings-grid { display: flex; flex-wrap: wrap; gap: 10px; }
         .reading-card {
             background-color: #0d1117;
-            padding: 10px;
+            padding: 10px 15px;
             border-radius: 6px;
-            text-align: center;
-            flex: 1;
+            flex: 1 1 120px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .reading-card .icon {
+            font-size: 1.5rem;
+            color: #58a6ff;
+        }
+        .reading-card .reading-text {
+            text-align: left;
         }
         .reading-card .label { font-size: 0.8rem; color: #8b949e; }
         .reading-card .value { font-size: 1.2rem; font-weight: 600; color: #c9d1d9; }
 
         /* Formulário Otimizado */
-        .form-group { margin-bottom: 10px; }
-        .form-group label {
-            display: block;
-            font-size: 0.8rem;
-            color: #8b949e;
-            margin-bottom: 4px;
+        #settingsForm {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1; /* Faz o formulário crescer para preencher o painel */
         }
-        .input-row { display: flex; gap: 10px; }
-        .input-row input {
+        .form-content {
+            flex-grow: 1; /* Empurra o botão de salvar para baixo */
+        }
+        .form-section { margin-bottom: 15px; }
+        .form-section-title { font-size: 1rem; color: #c9d1d9; margin-bottom: 8px; }
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 30px;
+        }
+        .input-grid label {
+            font-size: 0.75rem;
+            color: #8b949e;
+        }
+        .input-grid input {
+            display: block;
             width: 100%;
+            margin-top: 4px;
             background-color: #010409;
             border: 1px solid #30363d;
             color: #c9d1d9;
             border-radius: 6px;
-            padding: 8px;
+            padding: 5px;
             font-size: 0.9rem;
         }
         .btn-submit {
@@ -90,7 +128,11 @@
             font-size: 1rem;
             border-radius: 6px;
             cursor: pointer;
-            margin-top: 10px;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
         #notification {
             text-align: center;
@@ -102,12 +144,10 @@
         }
         #notification.success { background-color: #238636; }
         #notification.error { background-color: #da3633; }
-
+        
         /* Gráfico ApexCharts */
         .chart-panel { width: 100%; }
-        .chart-container {
-            min-height: 250px;
-        }
+        .chart-container { min-height: 250px; }
 
         .last-update {
             font-size: 0.8rem;
@@ -128,29 +168,43 @@
             <!-- PAINEL DE LEITURAS -->
             <div class="panel">
                 <h2 class="panel-title">Leituras Atuais</h2>
-                <div class="sensor-group">
-                    <p class="sensor-group-title">Sensor 1 (AHT20)</p>
-                    <div class="readings-grid">
-                        <div class="reading-card">
-                            <p class="label">Temperatura</p>
-                            <p class="value" id="s1_temp">-- °C</p>
-                        </div>
-                        <div class="reading-card">
-                            <p class="label">Umidade</p>
-                            <p class="value" id="s1_humidity">-- %</p>
+                <div class="readings-panel-content">
+                    <div class="sensor-group">
+                        <p class="sensor-group-title">Sensor 1 (AHT10)</p>
+                        <div class="readings-grid">
+                            <div class="reading-card">
+                                <i class="fas fa-thermometer-half icon"></i>
+                                <div class="reading-text">
+                                    <p class="label">Temperatura</p>
+                                    <p class="value" id="s1_temp">-- °C</p>
+                                </div>
+                            </div>
+                            <div class="reading-card">
+                                <i class="fas fa-tint icon"></i>
+                                <div class="reading-text">
+                                    <p class="label">Umidade</p>
+                                    <p class="value" id="s1_humidity">-- %</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="sensor-group">
-                    <p class="sensor-group-title">Sensor 2 (BMP280)</p>
-                    <div class="readings-grid">
-                        <div class="reading-card">
-                            <p class="label">Temperatura</p>
-                            <p class="value" id="s2_temp">-- °C</p>
-                        </div>
-                        <div class="reading-card">
-                            <p class="label">Pressão</p>
-                            <p class="value" id="s2_pressure">-- hPa</p>
+                    <div class="sensor-group">
+                        <p class="sensor-group-title">Sensor 2 (BMP280)</p>
+                        <div class="readings-grid">
+                            <div class="reading-card">
+                                <i class="fas fa-thermometer-half icon"></i>
+                                <div class="reading-text">
+                                    <p class="label">Temperatura</p>
+                                    <p class="value" id="s2_temp">-- °C</p>
+                                </div>
+                            </div>
+                            <div class="reading-card">
+                                <i class="fas fa-tachometer-alt icon"></i>
+                                <div class="reading-text">
+                                    <p class="label">Pressão</p>
+                                    <p class="value" id="s2_pressure">-- hPa</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -160,28 +214,30 @@
             <div class="panel">
                 <h2 class="panel-title">Configurações</h2>
                 <form id="settingsForm">
-                    <div class="form-group">
-                        <label>Temperatura (°C)</label>
-                        <div class="input-row">
-                            <input type="number" id="temp_min" placeholder="Min" step="any">
-                            <input type="number" id="temp_max" placeholder="Max" step="any">
-                            <input type="number" id="temp_offset" placeholder="Offset" step="any">
+                    <div class="form-content">
+                        <div class="form-section">
+                            <p class="form-section-title">Temperatura (°C)</p>
+                            <div class="input-grid">
+                                <label>Mínimo<input type="number" id="temp_min" step="any"></label>
+                                <label>Máximo<input type="number" id="temp_max" step="any"></label>
+                                <label>Offset<input type="number" id="temp_offset" step="any"></label>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Umidade (%)</label>
-                        <div class="input-row">
-                            <input type="number" id="humidity_min" placeholder="Min" step="any">
-                            <input type="number" id="humidity_max" placeholder="Max" step="any">
-                            <input type="number" id="humidity_offset" placeholder="Offset" step="any">
+                        <div class="form-section">
+                            <p class="form-section-title">Umidade (%)</p>
+                            <div class="input-grid">
+                                <label>Mínimo<input type="number" id="humidity_min" step="any"></label>
+                                <label>Máximo<input type="number" id="humidity_max" step="any"></label>
+                                <label>Offset<input type="number" id="humidity_offset" step="any"></label>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Pressão (hPa)</label>
-                        <div class="input-row">
-                            <input type="number" id="pressure_min" placeholder="Min" step="any">
-                            <input type="number" id="pressure_max" placeholder="Max" step="any">
-                            <input type="number" id="pressure_offset" placeholder="Offset" step="any">
+                        <div class="form-section">
+                            <p class="form-section-title">Pressão (hPa)</p>
+                            <div class="input-grid">
+                                <label>Mínimo<input type="number" id="pressure_min" step="any"></label>
+                                <label>Máximo<input type="number" id="pressure_max" step="any"></label>
+                                <label>Offset<input type="number" id="pressure_offset" step="any"></label>
+                            </div>
                         </div>
                     </div>
                     <button type="submit" class="btn-submit">Salvar</button>
@@ -210,10 +266,10 @@
         document.addEventListener('DOMContentLoaded', () => {
             const settingsForm = document.getElementById('settingsForm');
             const notification = document.getElementById('notification');
+
             let isUserEditingForm = false;
             let tempChart, humidityChart, pressureChart;
 
-            // --- LÓGICA DO GRÁFICO APEXCHARTS ---
             const MAX_DATA_POINTS = 150;
             const chartData = {
                 temp_s1: [], temp_s2: [], humidity_s1: [], pressure_s2: []
@@ -240,7 +296,7 @@
                         range: MAX_DATA_POINTS * 5000,
                         labels: { 
                             style: { colors: '#8b949e' },
-                            datetimeUTC: false, 
+                            datetimeUTC: false,
                             formatter: function(value) {
                                 return new Date(value).toLocaleTimeString('pt-BR');
                             }
@@ -276,9 +332,9 @@
                     if (series.length > MAX_DATA_POINTS) series.shift();
                 };
                 
-                pushData(chartData.temp_s1, getSafeNumber(data.aht20_temp));
+                pushData(chartData.temp_s1, getSafeNumber(data.aht10_temp));
                 pushData(chartData.temp_s2, getSafeNumber(data.bmp280_temp));
-                pushData(chartData.humidity_s1, getSafeNumber(data.aht20_humidity));
+                pushData(chartData.humidity_s1, getSafeNumber(data.aht10_humidity));
                 pushData(chartData.pressure_s2, getSafeNumber(data.bmp280_pressure));
 
                 tempChart.updateSeries([{ data: chartData.temp_s1 }, { data: chartData.temp_s2 }]);
@@ -286,12 +342,11 @@
                 pressureChart.updateSeries([{ data: chartData.pressure_s2 }]);
             }
 
-            // --- LÓGICA PRINCIPAL ---
             const getSafeNumber = (val) => (typeof val === 'number' && !isNaN(val)) ? val : 0;
 
             function updateReadings(data) {
-                document.getElementById('s1_temp').textContent = `${getSafeNumber(data.aht20_temp).toFixed(1)} °C`;
-                document.getElementById('s1_humidity').textContent = `${getSafeNumber(data.aht20_humidity).toFixed(1)} %`;
+                document.getElementById('s1_temp').textContent = `${getSafeNumber(data.aht10_temp).toFixed(1)} °C`;
+                document.getElementById('s1_humidity').textContent = `${getSafeNumber(data.aht10_humidity).toFixed(1)} %`;
                 document.getElementById('s2_temp').textContent = `${getSafeNumber(data.bmp280_temp).toFixed(1)} °C`;
                 document.getElementById('s2_pressure').textContent = `${getSafeNumber(data.bmp280_pressure).toFixed(0)} hPa`;
             }
@@ -353,9 +408,7 @@
                         showNotification('Salvo!', 'success');
                         isUserEditingForm = false;
                         await fetchData();
-                    } else {
-                        throw new Error(`Erro ao salvar: ${response.status}`);
-                    }
+                    } else { throw new Error(`Erro ao salvar: ${response.status}`); }
                 } catch (error) {
                     console.error("Falha ao enviar formulário:", error);
                     showNotification('Falha!', 'error');

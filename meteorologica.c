@@ -29,7 +29,7 @@
 #define I2C_PORT i2c0               // i2c0 pinos 0 e 1, i2c1 pinos 2 e 3
 #define I2C_SDA 0                   // 0 ou 2
 #define I2C_SCL 1                   // 1 ou 3
-#define SEA_LEVEL_PRESSURE 102125.0 // Pressão ao nível do mar em Pa
+#define SEA_LEVEL_PRESSURE 102025.0 // Pressão ao nível do mar em Pa
 // Display na I2C
 #define I2C_PORT_DISP i2c1
 #define I2C_SDA_DISP 14
@@ -104,7 +104,7 @@ float min_temp_limit = 10.0, max_temp_limit = 35.0;
 float min_press_limit = 950.0, max_press_limit = 1050.0;
 float min_hum_limit = 20.0, max_hum_limit = 80.0;
 
-// Offsets de calibração (opcional)
+// Offsets de calibração
 float temp_offset = 0.0, press_offset = 0.0, hum_offset = 0.0;
 
 
@@ -118,7 +118,7 @@ int32_t pressure;    // Variável para armazenar a pressão convertida
 double altitude;    // Variável para armazenar a altitude calculada
 
 char str_tmp1[5];  // Buffer para armazenar a string
-char str_alt[5];  // Buffer para armazenar a string  
+char str_press[10];  // Buffer para armazenar a string
 char str_tmp2[5];  // Buffer para armazenar a string
 char str_umi[5];  // Buffer para armazenar a string
 
@@ -163,12 +163,11 @@ void gpio_irq_handler(uint gpio, uint32_t events){
 
 int main(){
     sleep_ms(200); // Pequeno delay para garantir estabilidade
-    // Para ser utilizado o modo BOOTSEL com botão B
+
     gpio_init(BOTAO_B);
     gpio_set_dir(BOTAO_B, GPIO_IN);
     gpio_pull_up(BOTAO_B);
     gpio_set_irq_enabled_with_callback(BOTAO_B, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
-   // Fim do trecho para modo BOOTSEL com botão B
 
     // I2C do Display funcionando em 400Khz.
     i2c_init(I2C_PORT_DISP, 400 * 1000);
@@ -289,7 +288,7 @@ int main(){
         }
 
         sprintf(str_tmp1, "%.1fC", medidas_corrigidas.temp_bmp280);  // Converte o inteiro em string
-        sprintf(str_alt, "%.0fm", altitude);  // Converte o inteiro em string
+        sprintf(str_press, "%.0fhPa", medidas_corrigidas.press_bmp280);  // Converte pressão em hPa para string
         sprintf(str_tmp2, "%.1fC", medidas_corrigidas.temp_aht20);  // Converte o inteiro em string
         sprintf(str_umi, "%.1f%%", medidas_corrigidas.hum_aht20);  // Converte o inteiro em string        
 
@@ -332,7 +331,7 @@ int main(){
         ssd1306_draw_string(&ssd, "BMP280  AHT10", 10, 28); // Desenha uma string
         ssd1306_line(&ssd, 63, 25, 63, 60, cor);            // Desenha uma linha vertical
         ssd1306_draw_string(&ssd, str_tmp1, 14, 41);             // Desenha uma string
-        ssd1306_draw_string(&ssd, str_alt, 14, 52);             // Desenha uma string
+        ssd1306_draw_string(&ssd, str_press, 7, 52);             // Desenha uma string
         ssd1306_draw_string(&ssd, str_tmp2, 73, 41);             // Desenha uma string
         ssd1306_draw_string(&ssd, str_umi, 73, 52);            // Desenha uma string
         ssd1306_send_data(&ssd);                            // Atualiza o display
@@ -386,8 +385,8 @@ static err_t http_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t er
         char json_payload[512];
         int json_len = snprintf(json_payload, sizeof(json_payload),
             "{"
-                "\"aht20_temp\":%.2f,"
-                "\"aht20_humidity\":%.2f,"
+                "\"aht10_temp\":%.2f,"
+                "\"aht10_humidity\":%.2f,"
                 "\"bmp280_temp\":%.2f,"
                 "\"bmp280_pressure\":%.2f,"
                 "\"temp_min\":%.2f,"
