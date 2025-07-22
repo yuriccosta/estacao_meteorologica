@@ -150,7 +150,7 @@
                         </div>
                         <div class="reading-card">
                             <p class="label">Pressão</p>
-                            <p class="value" id="s2_pressure">-- Pa</p>
+                            <p class="value" id="s2_pressure">-- hPa</p>
                         </div>
                     </div>
                 </div>
@@ -177,7 +177,7 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Pressão (Pa)</label>
+                        <label>Pressão (hPa)</label>
                         <div class="input-row">
                             <input type="number" id="pressure_min" placeholder="Min" step="any">
                             <input type="number" id="pressure_max" placeholder="Max" step="any">
@@ -214,7 +214,7 @@
             let tempChart, humidityChart, pressureChart;
 
             // --- LÓGICA DO GRÁFICO APEXCHARTS ---
-            const MAX_DATA_POINTS = 20;
+            const MAX_DATA_POINTS = 150;
             const chartData = {
                 temp_s1: [], temp_s2: [], humidity_s1: [], pressure_s2: []
             };
@@ -234,11 +234,17 @@
                     },
                     stroke: { curve: 'smooth', width: 2 },
                     theme: { mode: 'dark' },
-                    tooltip: { theme: 'dark' },
+                    tooltip: { theme: 'dark', x: { format: 'HH:mm:ss' } },
                     xaxis: {
                         type: 'datetime',
                         range: MAX_DATA_POINTS * 5000,
-                        labels: { style: { colors: '#8b949e' } }
+                        labels: { 
+                            style: { colors: '#8b949e' },
+                            datetimeUTC: false, 
+                            formatter: function(value) {
+                                return new Date(value).toLocaleTimeString('pt-BR');
+                            }
+                        }
                     },
                     grid: { borderColor: '#30363d' },
                     legend: { labels: { colors: '#c9d1d9' } }
@@ -258,8 +264,8 @@
 
                 pressureChart = createChart('#pressureChart', {
                     ...commonOptions,
-                    series: [{ name: 'Pressão S2 (Pa)', data: [] }],
-                    yaxis: { title: { text: 'Pa', style: { color: '#8b949e' } }, labels: { style: { colors: '#8b949e' } } }
+                    series: [{ name: 'Pressão S2 (hPa)', data: [] }],
+                    yaxis: { title: { text: 'hPa', style: { color: '#8b949e' } }, labels: { style: { colors: '#8b949e' } } }
                 });
             }
 
@@ -287,7 +293,7 @@
                 document.getElementById('s1_temp').textContent = `${getSafeNumber(data.aht20_temp).toFixed(1)} °C`;
                 document.getElementById('s1_humidity').textContent = `${getSafeNumber(data.aht20_humidity).toFixed(1)} %`;
                 document.getElementById('s2_temp').textContent = `${getSafeNumber(data.bmp280_temp).toFixed(1)} °C`;
-                document.getElementById('s2_pressure').textContent = `${getSafeNumber(data.bmp280_pressure).toFixed(0)} Pa`;
+                document.getElementById('s2_pressure').textContent = `${getSafeNumber(data.bmp280_pressure).toFixed(0)} hPa`;
             }
 
             function updateForm(config) {

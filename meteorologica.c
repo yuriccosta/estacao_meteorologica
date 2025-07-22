@@ -47,6 +47,7 @@
 #define JOY_X 27 // Joystick está de lado em relação ao que foi dito no pdf
 #define JOY_Y 26
 #define max_value_joy 4065.0 // (4081 - 16) que são os valores extremos máximos lidos pelo meu joystick
+#define BOTAO_B 6
 
 // Declaração de variáveis globais
 PIO pio;
@@ -54,24 +55,27 @@ uint sm;
 ssd1306_t ssd; // Inicializa a estrutura do display
 
 uint padrao_led[10][LED_COUNT] = {
+     // Desenho VERDE (segurança): círculo verde no centro
     {0, 0, 1, 0, 0,
      0, 1, 1, 1, 0,
      1, 1, 1, 1, 1,
-     1, 1, 1, 1, 1,
      0, 1, 1, 1, 0,
-    }, // Umidificador Ativo (Desenho de gota)
-    {2, 0, 2, 0, 2,
-     0, 2, 2, 2, 0,
-     2, 2, 2, 2, 2,
-     0, 2, 2, 2, 0,
-     2, 0, 2, 0, 2,
-    }, // Desumidificador ativo (Desenho de Sol)
+     0, 0, 1, 0, 0,
+    },
+    // Desenho VERMELHO (erro): X vermelho
+    {2, 0, 0, 0, 2,
+     0, 2, 0, 2, 0,
+     0, 0, 2, 0, 0,
+     0, 2, 0, 2, 0,
+     2, 0, 0, 0, 2,
+    },
     {0, 0, 0, 0, 0,
      0, 0, 0, 0, 0,
      0, 0, 0, 0, 0,
      0, 0, 0, 0, 0,
      0, 0, 0, 0, 0,
-    } // Desliga os LEDs
+    }, // Desliga os LEDs
+
 };
 
 // Ordem da matriz de LEDS, útil para poder visualizar na matriz do código e escrever na ordem correta do hardware
@@ -84,6 +88,16 @@ struct http_state
     size_t len;
     size_t sent;
 };
+
+// Struct para armazenar valores já com offset aplicado
+typedef struct {
+    float temp_aht20;
+    float hum_aht20;
+    float temp_bmp280;
+    float press_bmp280;
+} MedidasCorrigidas;
+
+MedidasCorrigidas medidas_corrigidas;
 
 // Adicione as variáveis globais para limites e offsets
 float min_temp_limit = 10.0, max_temp_limit = 35.0;
@@ -109,7 +123,12 @@ char str_tmp2[5];  // Buffer para armazenar a string
 char str_umi[5];  // Buffer para armazenar a string
 
 
-
+// Prototipagem das funções
+uint32_t matrix_rgb(unsigned r, unsigned g, unsigned b);
+void display_desenho(int number);
+void pwm_setup(uint pin);
+void iniciar_buzzer(uint pin);
+void parar_buzzer(uint pin);
 static err_t http_sent(void *arg, struct tcp_pcb *tpcb, u16_t len);
 static err_t http_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
 static err_t connection_callback(void *arg, struct tcp_pcb *newpcb, err_t err);
@@ -121,19 +140,34 @@ double calculate_altitude(double pressure){
     return 44330.0 * (1.0 - pow(pressure / SEA_LEVEL_PRESSURE, 0.1903));
 }
 
-// Trecho para modo BOOTSEL com botão B
-#include "pico/bootrom.h"
-#define botaoB 6
+
 void gpio_irq_handler(uint gpio, uint32_t events){
-    reset_usb_boot(0, 0);
+    if (gpio == BOTAO_B) {
+        absolute_time_t agora = get_absolute_time();
+        static absolute_time_t ultimo_acionamento = 0;
+        if (absolute_time_diff_us(ultimo_acionamento, agora) > 300000) {
+            // Reseta os limites e offsets para valores padrão
+            min_temp_limit = 10.0;
+            max_temp_limit = 35.0;
+            temp_offset = 0.0;
+            min_hum_limit = 20.0;
+            max_hum_limit = 80.0;
+            hum_offset = 0.0;
+            min_press_limit = 950.0;
+            max_press_limit = 1050.0;
+            press_offset = 0.0;
+            ultimo_acionamento = agora;
+        }
+    }
 }
 
 int main(){
+    sleep_ms(200); // Pequeno delay para garantir estabilidade
     // Para ser utilizado o modo BOOTSEL com botão B
-    gpio_init(botaoB);
-    gpio_set_dir(botaoB, GPIO_IN);
-    gpio_pull_up(botaoB);
-    gpio_set_irq_enabled_with_callback(botaoB, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
+    gpio_init(BOTAO_B);
+    gpio_set_dir(BOTAO_B, GPIO_IN);
+    gpio_pull_up(BOTAO_B);
+    gpio_set_irq_enabled_with_callback(BOTAO_B, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
    // Fim do trecho para modo BOOTSEL com botão B
 
     // I2C do Display funcionando em 400Khz.
@@ -167,7 +201,13 @@ int main(){
     // Inicializa o AHT20
     aht20_reset(I2C_PORT);
     aht20_init(I2C_PORT);
+    // --- Leitura inicial 
+    bmp280_read_raw(I2C_PORT, &raw_temp_bmp, &raw_pressure);
+    temperature = bmp280_convert_temp(raw_temp_bmp, &params);
+    pressure = bmp280_convert_pressure(raw_pressure, raw_temp_bmp, &params);
+    aht20_read(I2C_PORT, &data);
 
+    stdio_init_all(); // Inicializa a saída padrão (UART)
 
 
     if (cyw43_arch_init()){
@@ -187,18 +227,36 @@ int main(){
             return 1; // Retorna erro se não conseguir conectar ao Wi-Fi
         }
 
-        uint8_t *ip = (uint8_t *)&(cyw43_state.netif[0].ip_addr.addr);
-        char ip_str[24];
-        snprintf(ip_str, sizeof(ip_str), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-        printf("IP: %s\n",ip_str);
-        ssd1306_fill(&ssd, false);
-        ssd1306_draw_string(&ssd, "WiFi => OK", 0, 0);
-        ssd1306_draw_string(&ssd, ip_str, 0, 10);
-        ssd1306_send_data(&ssd);
-        start_http_server();
-        sleep_ms(2000); // pra dar tempo de ver o ip
+    uint8_t *ip = (uint8_t *)&(cyw43_state.netif[0].ip_addr.addr);
+    char ip_str[24];
+    snprintf(ip_str, sizeof(ip_str), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+    printf("IP: %s\n",ip_str);
+    ssd1306_fill(&ssd, false);
+    ssd1306_draw_string(&ssd, "WiFi => OK", 0, 0);
+    ssd1306_draw_string(&ssd, ip_str, 0, 10);
+    ssd1306_send_data(&ssd);
+    start_http_server();
+    sleep_ms(2000); // pra dar tempo de ver o ip
     
 
+    // Configuração do PIO
+    pio = pio0; 
+    uint offset = pio_add_program(pio, &animacao_matriz_program);
+    sm = pio_claim_unused_sm(pio, true);
+    animacao_matriz_program_init(pio, sm, offset, MATRIZ_PIN);
+
+    // Configura os leds
+    gpio_init(LED_PIN_RED);
+    gpio_set_dir(LED_PIN_RED, GPIO_OUT);
+    gpio_put(LED_PIN_RED, 0); // Desliga o LED vermelho
+    gpio_init(LED_PIN_GREEN);
+    gpio_set_dir(LED_PIN_GREEN, GPIO_OUT);
+    gpio_put(LED_PIN_GREEN, 1); // Liga o LED verde
+
+    
+
+    
+        
     bool cor = true;
     while(1){
         // Leitura do BMP280
@@ -206,30 +264,64 @@ int main(){
         temperature = bmp280_convert_temp(raw_temp_bmp, &params);
         pressure = bmp280_convert_pressure(raw_pressure, raw_temp_bmp, &params);
 
-        // Cálculo da altitude
-        altitude = calculate_altitude(pressure);
+        // Aplica offsets e armazena em struct
+        medidas_corrigidas.temp_aht20 = data.temperature + temp_offset;
+        medidas_corrigidas.hum_aht20 = data.humidity + hum_offset;
+        medidas_corrigidas.temp_bmp280 = (temperature / 100.0) + temp_offset;
+        medidas_corrigidas.press_bmp280 = (pressure / 100.0) + press_offset;
 
-        printf("Pressao = %.3f kPa\n", pressure / 1000.0);
-        printf("Temperatura BMP: = %.2f C\n", temperature / 100.0);
+        // Cálculo da altitude
+        altitude = calculate_altitude(medidas_corrigidas.press_bmp280 * 100.0); // press_bmp280 está em hPa, função espera Pa
+
+        printf("Pressao = %.3f kPa\n", medidas_corrigidas.press_bmp280 / 10.0);
+        printf("Temperatura BMP: = %.2f C\n", medidas_corrigidas.temp_bmp280);
         printf("Altitude estimada: %.2f m\n", altitude);
 
         // Leitura do AHT20
         if (aht20_read(I2C_PORT, &data))
         {
-            printf("Temperatura AHT: %.2f C\n", data.temperature);
-            printf("Umidade: %.2f %%\n\n\n", data.humidity);
+            printf("Temperatura AHT: %.2f C\n", medidas_corrigidas.temp_aht20);
+            printf("Umidade: %.2f %%\n\n\n", medidas_corrigidas.hum_aht20);
         }
         else
         {
             printf("Erro na leitura do AHT10!\n\n\n");
         }
 
-
-        sprintf(str_tmp1, "%.1fC", temperature / 100.0);  // Converte o inteiro em string
+        sprintf(str_tmp1, "%.1fC", medidas_corrigidas.temp_bmp280);  // Converte o inteiro em string
         sprintf(str_alt, "%.0fm", altitude);  // Converte o inteiro em string
-        sprintf(str_tmp2, "%.1fC", data.temperature);  // Converte o inteiro em string
-        sprintf(str_umi, "%.1f%%", data.humidity);  // Converte o inteiro em string        
-    
+        sprintf(str_tmp2, "%.1fC", medidas_corrigidas.temp_aht20);  // Converte o inteiro em string
+        sprintf(str_umi, "%.1f%%", medidas_corrigidas.hum_aht20);  // Converte o inteiro em string        
+
+        // --- ALERTAS ---
+        bool alerta = false;
+        // Checa limites de temperatura (AHT20 e BMP280)
+        if (medidas_corrigidas.temp_aht20 < min_temp_limit || medidas_corrigidas.temp_aht20 > max_temp_limit ||
+            medidas_corrigidas.temp_bmp280 < min_temp_limit || medidas_corrigidas.temp_bmp280 > max_temp_limit) {
+            alerta = true;
+        }
+        // Checa limites de umidade
+        if (medidas_corrigidas.hum_aht20 < min_hum_limit || medidas_corrigidas.hum_aht20 > max_hum_limit) {
+            alerta = true;
+        }
+        // Checa limites de pressão
+        if (medidas_corrigidas.press_bmp280 < min_press_limit || medidas_corrigidas.press_bmp280 > max_press_limit) {
+            alerta = true;
+        }
+
+        // ALERTA VISUAL (LED RGB)
+        if (alerta) {
+            gpio_put(LED_PIN_RED, 1); // Liga LED vermelho
+            gpio_put(LED_PIN_GREEN, 0);
+            iniciar_buzzer(BUZZER_A); // Liga o buzzer
+            display_desenho(1); // Atualiza a matriz de LEDs para vermelho
+        } else {
+            gpio_put(LED_PIN_RED, 0);
+            gpio_put(LED_PIN_GREEN, 1); // Verde normal
+            parar_buzzer(BUZZER_A); // Desliga o buzzer
+            display_desenho(0); // Atualiza a matriz de LEDs para verde
+        }
+
         //  Atualiza o conteúdo do display com animações
         ssd1306_fill(&ssd, !cor);                           // Limpa o display
         ssd1306_rect(&ssd, 3, 3, 122, 60, cor, !cor);       // Desenha um retângulo
@@ -290,12 +382,7 @@ static err_t http_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t er
 
     
     if (strstr(req, "GET /estado")) {
-        // Leitura dos sensores reais
-        float aht20_temp = data.temperature + temp_offset;
-        float aht20_humidity = data.humidity + hum_offset;
-        float bmp280_temp = temperature / 100.0 + temp_offset;
-        float bmp280_pressure = pressure + press_offset;
-
+        // Usa os valores já corrigidos
         char json_payload[512];
         int json_len = snprintf(json_payload, sizeof(json_payload),
             "{"
@@ -313,7 +400,7 @@ static err_t http_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t er
                 "\"pressure_max\":%.2f,"
                 "\"pressure_offset\":%.2f"
             "}\r\n",
-            aht20_temp, aht20_humidity, bmp280_temp, bmp280_pressure,
+            medidas_corrigidas.temp_aht20, medidas_corrigidas.hum_aht20, medidas_corrigidas.temp_bmp280, medidas_corrigidas.press_bmp280,
             min_temp_limit, max_temp_limit, temp_offset,
             min_hum_limit, max_hum_limit, hum_offset,
             min_press_limit, max_press_limit, press_offset
@@ -421,4 +508,56 @@ static void start_http_server(void)
     pcb = tcp_listen(pcb);
     tcp_accept(pcb, connection_callback);
     printf("Servidor HTTP rodando na porta 80...\n");
+}
+
+// Rotina para definição da intensidade de cores do led
+uint32_t matrix_rgb(unsigned r, unsigned g, unsigned b){
+    return (g << 24) | (r << 16) | (b << 8);
+}
+
+// Rotina para desenhar o padrão de LED
+void display_desenho(int number){
+    uint32_t valor_led;
+
+    for (int i = 0; i < LED_COUNT; i++){
+        // Define a cor do LED de acordo com o padrão
+        if (padrao_led[number][ordem[24 - i]] == 1){
+            valor_led = matrix_rgb(0, 10, 00); // Verde
+        } else if (padrao_led[number][ordem[24 - i]] == 2){
+            valor_led = matrix_rgb(10, 0, 0); // Vermelho
+        } else{
+            valor_led = matrix_rgb(0, 0, 0); // Desliga o LED
+        }
+        // Atualiza o LED
+        pio_sm_put_blocking(pio, sm, valor_led);
+    }
+}
+
+// Configuração do PWM
+void pwm_setup(uint pino) {
+    gpio_set_function(pino, GPIO_FUNC_PWM);   // Configura o pino como saída PWM
+    uint slice = pwm_gpio_to_slice_num(pino); // Obtém o slice correspondente
+    
+    pwm_set_wrap(slice, max_value_joy);  // Define o valor máximo do PWM
+
+    pwm_set_enabled(slice, true);  // Habilita o slice PWM
+}
+
+// Função para iniciar o buzzer
+void iniciar_buzzer(uint pin) {
+    gpio_set_function(pin, GPIO_FUNC_PWM);
+    uint slice_num = pwm_gpio_to_slice_num(pin); // Obtém o slice correspondente
+
+    pwm_set_clkdiv(slice_num, 125); // Define o divisor de clock
+    pwm_set_wrap(slice_num, 1000);  // Define o valor máximo do PWM
+
+    pwm_set_gpio_level(pin, 10); //Para um som mais baixo foi colocado em 10
+    pwm_set_enabled(slice_num, true);
+}
+
+// Função para parar o buzzer
+void parar_buzzer(uint pin) {
+    uint slice_num = pwm_gpio_to_slice_num(pin); // Obtém o slice correspondente
+    pwm_set_enabled(slice_num, false); // Desabilita o slice PWM
+    gpio_put(pin, 0); // Coloca o pino em nível para garantir que o buzzer está desligado
 }
